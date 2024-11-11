@@ -14,7 +14,7 @@ fn main() -> Result<()> {
 
     let transactions = get_transactions(&args[1])?;
     write_detail_as_csv(&transactions, "CGT_transaction_detail.csv")?;
-    compute_and_print_report(&transactions);
+    compute_and_print_report(&transactions)?;
 
     Ok(())
 }

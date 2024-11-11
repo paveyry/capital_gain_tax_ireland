@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Error};
 use calamine::{open_workbook, Data, DataType, Reader, Xlsx};
-use time::{format_description::BorrowedFormatItem, macros::format_description, Date};
+use time::{format_description::BorrowedFormatItem, macros::format_description, Date, Month};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -25,15 +25,21 @@ pub struct Transaction {
 }
 
 #[derive(Debug, Default)]
-pub struct Totals {
+pub struct PeriodTaxReport {
     pub usd_gain: f64,
     pub usd_loss: f64,
     pub usd_net_gain: f64,
     pub eur_gain: f64,
     pub eur_loss: f64,
     pub eur_net_gain: f64,
+}
+
+#[derive(Debug, Default)]
+pub struct TaxReport {
+    pub fiscal_year: i32,
+    pub period_tax_report: PeriodTaxReport,
     pub eur_taxable_gain: f64,
-    pub tax: f64,
+    pub eur_tax: f64,
 }
 
 #[derive(Debug, Default)]
@@ -102,10 +108,14 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
 
     let mut exr_cache = ExchangeRateCache::new();
     let mut transactions = Vec::new();
-    for r in range.rows().skip(1) {
-        if r[record_type_index] != Data::String("Sell".to_string()) {
-            continue;
-        }
+
+    let mut year: i32 = 0;
+
+    for r in range
+        .rows()
+        .skip(1)
+        .filter(|r| r[record_type_index] == Data::String("Sell".to_string()))
+    {
         let sell_date = Date::parse(
             r[date_index]
                 .as_string()
@@ -113,6 +123,12 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
                 .as_str(),
             &XLSX_DATE_FMT,
         )?;
+        if year == 0 {
+            year = sell_date.year()
+        } else if year != sell_date.year() {
+            return Err(Error::msg("all cells should be from the same fiscal year"));
+        }
+
         let gain_loss = r[gain_loss_index]
             .as_f64()
             .context("wrong gain/loss field type")?;
@@ -136,22 +152,56 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
     Ok(transactions)
 }
 
-fn compute_report(transactions: &[Transaction]) -> Totals {
-    let mut totals = Totals::default();
-    transactions.iter().for_each(|t| {
-        totals.usd_gain += t.usd_gain;
-        totals.usd_loss += t.usd_loss;
-        totals.eur_gain += t.eur_gain;
-        totals.eur_loss += t.eur_loss;
-    });
-    totals.usd_net_gain = totals.usd_gain - totals.usd_loss;
-    totals.eur_net_gain = totals.eur_gain - totals.eur_loss;
-    totals.eur_taxable_gain = totals.eur_net_gain - EXEMPTION_EUR;
-    if totals.eur_taxable_gain < 0. {
-        totals.eur_taxable_gain = 0.;
+fn compute_period_report(
+    transactions: &[Transaction],
+    period: Option<(Date, Date)>,
+) -> PeriodTaxReport {
+    let (usd_gain, usd_loss, eur_gain, eur_loss) = transactions
+        .iter()
+        .filter(|t| {
+            if let Some((period_start, period_end)) = period {
+                t.sell_date >= period_start && t.sell_date <= period_end
+            } else {
+                true
+            }
+        })
+        .fold(
+            (0., 0., 0., 0.),
+            |(usd_gain, usd_loss, eur_gain, eur_loss), t| {
+                (
+                    usd_gain + t.usd_gain,
+                    usd_loss + t.usd_loss,
+                    eur_gain + t.eur_gain,
+                    eur_loss + t.eur_loss,
+                )
+            },
+        );
+    let usd_net_gain = usd_gain - usd_loss;
+    let eur_net_gain = eur_gain - eur_loss;
+    PeriodTaxReport {
+        usd_gain,
+        usd_loss,
+        usd_net_gain,
+        eur_gain,
+        eur_loss,
+        eur_net_gain,
     }
-    totals.tax = totals.eur_taxable_gain * TAX_RATE;
-    totals
+}
+
+fn compute_year_report(transactions: &[Transaction]) -> TaxReport {
+    let fiscal_year = transactions
+        .first()
+        .map(|t| t.sell_date.year())
+        .unwrap_or_default();
+    let period_tax_report = compute_period_report(transactions, None);
+    let eur_taxable_gain = f64::max(period_tax_report.eur_net_gain - EXEMPTION_EUR, 0.);
+    let eur_tax = eur_taxable_gain * TAX_RATE;
+    TaxReport {
+        fiscal_year,
+        period_tax_report,
+        eur_taxable_gain,
+        eur_tax,
+    }
 }
 
 pub fn write_detail_as_csv<P: AsRef<Path>>(
@@ -184,21 +234,60 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn compute_and_print_report(transactions: &[Transaction]) {
-    let totals = compute_report(transactions);
-    println!("\nTotal gain (USD): ${:.2}", totals.usd_gain);
-    println!("Total loss (USD): ${:.2}", totals.usd_loss);
-    println!("Net gain (USD): ${:.2}\n", totals.usd_net_gain);
-    println!("Total gain: €{:.2}", totals.eur_gain);
-    println!("Total loss: €{:.2}", totals.eur_loss);
-    println!("Net gain: €{:.2}", totals.eur_net_gain);
+pub fn compute_and_print_report(transactions: &[Transaction]) -> Result<()> {
+    let yr_report = compute_year_report(transactions);
+    let yr = yr_report.fiscal_year;
+
+    // Jan 1st to Nov 30th
+    let period = (
+        Date::from_calendar_date(yr, Month::January, 1)?,
+        Date::from_calendar_date(yr, Month::November, 30)?,
+    );
+    print_period_header(period)?;
+    let period_report = compute_period_report(transactions, Some(period));
+    print_period_report(&period_report);
+
+    // Dec 1st to Dec 31st
+    let period = (
+        Date::from_calendar_date(yr, Month::December, 1)?,
+        Date::from_calendar_date(yr, Month::December, 31)?,
+    );
+    print_period_header(period)?;
+    let period_report = compute_period_report(transactions, Some(period));
+    print_period_report(&period_report);
+
+    // Full year
     println!(
-        "Taxable gain (amount above exemption): €{:.2}",
-        totals.eur_taxable_gain
+        "\n=== TAX REPORT FOR ENTIRE FISCAL YEAR {} ===\n",
+        yr_report.fiscal_year
+    );
+    print_period_report(&yr_report.period_tax_report);
+    println!(
+        "\nTaxable gain (amount above exemption): €{:.2}",
+        yr_report.eur_taxable_gain
     );
     println!(
         "Tax to pay ({:.2}%): €{}",
         TAX_RATE * 100.,
-        totals.eur_taxable_gain
+        yr_report.eur_taxable_gain * TAX_RATE
     );
+    Ok(())
+}
+
+fn print_period_header(period: (Date, Date)) -> Result<()> {
+    println!(
+        "\n=== TAX REPORT FOR PERIOD {} TO {} ===\n",
+        period.0.format(EXR_API_DATE_FMT)?,
+        period.1.format(EXR_API_DATE_FMT)?
+    );
+    Ok(())
+}
+
+fn print_period_report(report: &PeriodTaxReport) {
+    println!("Total gain (USD): ${:.2}", report.usd_gain);
+    println!("Total loss (USD): ${:.2}", report.usd_loss);
+    println!("Net gain (USD): ${:.2}\n", report.usd_net_gain);
+    println!("Total gain: €{:.2}", report.eur_gain);
+    println!("Total loss: €{:.2}", report.eur_loss);
+    println!("Net gain (Gain-Loss): €{:.2}", report.eur_net_gain);
 }
