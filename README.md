@@ -11,8 +11,9 @@ First, download the excel sheet with the trades for the year from Etrade:
 Warning
 -------
 
-This only works if you sold stock in the same order as you got them. Irish revenue applies a First-In-First-Out
-rule to sold shares, whereas Etrade attaches the sale transaction to a specific set of stock and does not force
+This only works if you sold stock in the same order as you got them. [Irish revenue applies a First-In-First-Out
+rule to sold shares](https://www.revenue.ie/en/gains-gifts-and-inheritance/transfering-an-asset/selling-or-disposing-of-shares.aspx),
+whereas Etrade attaches the sale transaction to a specific set of stock and does not force
 you to sell following the FIFO rule. This program does not account for this so if you sold stock in disorder, it
 will not be compliant with revenue's FIFO rule.
 
