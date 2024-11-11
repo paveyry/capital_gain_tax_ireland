@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Error};
 use calamine::{open_workbook, Data, DataType, Reader, Xlsx};
@@ -21,6 +21,7 @@ pub struct Transaction {
     usd_loss: f64,
     eur_gain: f64,
     eur_loss: f64,
+    exr: f64,
 }
 
 #[derive(Debug, Default)]
@@ -35,22 +36,40 @@ pub struct Totals {
     pub tax: f64,
 }
 
-fn get_exchange_rate(date: &Date) -> Result<f64> {
-    let date_str = date.format(EXR_API_DATE_FMT)?;
-    let r = reqwest::blocking::get(format!(
-        "https://data-api.ecb.europa.eu/service/data/EXR/D.{}.{}.SP00.A?detail=dataonly&startPeriod={}&endPeriod={}&format=csvdata",
-        FROM_CURRENCY, TO_CURRENCY, date_str, date_str))?;
-    let mut rdr = csv::Reader::from_reader(r);
-    let index = rdr
-        .headers()?
-        .iter()
-        .position(|h| h.trim() == "OBS_VALUE")
-        .context("failed to find EXR header")?;
-    let exr = &rdr
-        .records()
-        .next()
-        .context("missing entry from EXR CSV")??[index];
-    exr.parse::<f64>().context("EXR field is not a valid float")
+#[derive(Debug, Default)]
+struct ExchangeRateCache {
+    cache: HashMap<Date, f64>,
+}
+
+impl ExchangeRateCache {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn get_exr(&mut self, date: Date) -> Result<f64> {
+        if let Some(exr) = self.cache.get(&date) {
+            return Ok(*exr);
+        }
+        let date_str = date.format(EXR_API_DATE_FMT)?;
+        let r = reqwest::blocking::get(format!(
+            "https://data-api.ecb.europa.eu/service/data/EXR/D.{}.{}.SP00.A?detail=dataonly&startPeriod={}&endPeriod={}&format=csvdata",
+            FROM_CURRENCY, TO_CURRENCY, date_str, date_str))?;
+        let mut rdr = csv::Reader::from_reader(r);
+        let index = rdr
+            .headers()?
+            .iter()
+            .position(|h| h.trim() == "OBS_VALUE")
+            .context("failed to find EXR header")?;
+        let exr = &rdr
+            .records()
+            .next()
+            .context("missing entry from EXR CSV")??[index];
+        let exr = exr
+            .parse::<f64>()
+            .context("EXR field is not a valid float")?;
+        self.cache.insert(date, exr);
+        Ok(exr)
+    }
 }
 
 fn get_column_indices(headers: Vec<String>) -> Result<(usize, usize, usize)> {
@@ -81,6 +100,7 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
     let headers = range.headers().context("failed to extract headers")?;
     let (date_index, gain_loss_index, record_type_index) = get_column_indices(headers)?;
 
+    let mut exr_cache = ExchangeRateCache::new();
     let mut transactions = Vec::new();
     for r in range.rows().skip(1) {
         if r[record_type_index] != Data::String("Sell".to_string()) {
@@ -101,19 +121,22 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
         } else {
             (0., -gain_loss)
         };
-        let exr = get_exchange_rate(&sell_date).context("failed to retrieve exchange rate")?;
+        let exr = exr_cache
+            .get_exr(sell_date)
+            .context("failed to retrieve exchange rate")?;
         transactions.push(Transaction {
             sell_date,
             usd_gain,
             usd_loss,
             eur_gain: usd_gain / exr,
             eur_loss: usd_loss / exr,
+            exr,
         });
     }
     Ok(transactions)
 }
 
-fn compute(transactions: &[Transaction]) -> Totals {
+fn compute_report(transactions: &[Transaction]) -> Totals {
     let mut totals = Totals::default();
     transactions.iter().for_each(|t| {
         totals.usd_gain += t.usd_gain;
@@ -136,7 +159,14 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
     file_path: P,
 ) -> Result<()> {
     let mut wtr = csv::Writer::from_path(&file_path)?;
-    wtr.write_record(["Sell Date", "USD Gain", "USD Loss", "EUR Gain", "EUR Loss"])?;
+    wtr.write_record([
+        "Sell Date",
+        "USD Gain",
+        "USD Loss",
+        "EUR Gain",
+        "EUR Loss",
+        "EXR",
+    ])?;
     for t in transactions {
         wtr.write_record(&[
             t.sell_date.format(EXR_API_DATE_FMT)?,
@@ -144,6 +174,7 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
             t.usd_loss.to_string(),
             t.eur_gain.to_string(),
             t.eur_loss.to_string(),
+            t.exr.to_string(),
         ])?;
     }
     println!(
@@ -153,8 +184,8 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn compute_and_print_output(transactions: &[Transaction]) {
-    let totals = compute(transactions);
+pub fn compute_and_print_report(transactions: &[Transaction]) {
+    let totals = compute_report(transactions);
     println!("\nTotal gain (USD): ${}", totals.usd_gain);
     println!("Total loss (USD): ${}", totals.usd_loss);
     println!("Net gain (USD): ${}\n", totals.usd_net_gain);
