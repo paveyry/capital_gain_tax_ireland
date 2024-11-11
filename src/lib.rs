@@ -142,7 +142,7 @@ fn compute_report(transactions: &[Transaction]) -> Totals {
         totals.usd_gain += t.usd_gain;
         totals.usd_loss += t.usd_loss;
         totals.eur_gain += t.eur_gain;
-        totals.eur_loss += t.usd_loss;
+        totals.eur_loss += t.eur_loss;
     });
     totals.usd_net_gain = totals.usd_gain - totals.usd_loss;
     totals.eur_net_gain = totals.eur_gain - totals.eur_loss;
