@@ -186,18 +186,18 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
 
 pub fn compute_and_print_report(transactions: &[Transaction]) {
     let totals = compute_report(transactions);
-    println!("\nTotal gain (USD): ${}", totals.usd_gain);
-    println!("Total loss (USD): ${}", totals.usd_loss);
-    println!("Net gain (USD): ${}\n", totals.usd_net_gain);
-    println!("Total gain: €{}", totals.eur_gain);
-    println!("Total loss: €{}", totals.eur_loss);
-    println!("Net gain: €{}", totals.eur_net_gain);
+    println!("\nTotal gain (USD): ${:.2}", totals.usd_gain);
+    println!("Total loss (USD): ${:.2}", totals.usd_loss);
+    println!("Net gain (USD): ${:.2}\n", totals.usd_net_gain);
+    println!("Total gain: €{:.2}", totals.eur_gain);
+    println!("Total loss: €{:.2}", totals.eur_loss);
+    println!("Net gain: €{:.2}", totals.eur_net_gain);
     println!(
-        "Taxable gain (amount above exemption): €{}",
+        "Taxable gain (amount above exemption): €{:.2}",
         totals.eur_taxable_gain
     );
     println!(
-        "Tax to pay ({}%): €{}",
+        "Tax to pay ({:.2}%): €{}",
         TAX_RATE * 100.,
         totals.eur_taxable_gain
     );
