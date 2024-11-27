@@ -23,3 +23,23 @@ Usage
 Install Rust and Cargo: https://rustup.rs/
 
 Run the program with `cargo run <path_to_excel_file>`
+
+How to fill Form 11
+-------------------
+
+Disclaimer: I am not an accountant and I am not 100% sure that this is the right way to do it. Use at your own risks. If you
+notice a mistake, please report it by opening an issue on this repository.
+
+### Capital Gains section
+
+Here is how I fill the Capital Gains section:
+
+![year part](https://github.com/user-attachments/assets/b44599bc-26c2-4cb7-b0ed-fc2d5a009d07)
+
+![period part](https://github.com/user-attachments/assets/f61afe71-9795-426a-a213-b6c1cac9a400)
+
+### CGT Self assessment section
+
+For the self assessment, I use the `Taxable gain (amount above exemption)` and `Tax to pay (33.00%)` values
+displayed at the end of the program output. Unlike the values in the Capital Gains section, these values
+deduct the €1270,00 exemption from the result. 
