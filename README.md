@@ -27,8 +27,9 @@ Run the program with `cargo run <path_to_excel_file>`
 How to fill Form 11
 -------------------
 
-Disclaimer: I am not an accountant and I am not 100% sure that this is the right way to do it. Use at your own risks. If you
-notice a mistake, please report it by opening an issue on this repository.
+Disclaimer: I am not an accountant and I am not 100% sure that this is the right way to do it. I may have made a mistake
+or this might not suit your specific situation. Use at your own risks. If you notice a mistake, please report it by
+opening an issue on this repository.
 
 ### Capital Gains section
 
