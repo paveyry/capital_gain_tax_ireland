@@ -8,10 +8,8 @@ First, download the excel sheet with the trades for the year from Etrade:
 
         Stock Plan -> My Account -> Gains & Losses -> Select tax year -> Apply -> Download -> Download Expanded.
 
-Warning
--------
-
-This only works if you sold stock in the same order as you got them. [Irish revenue applies a First-In-First-Out
+> [!WARNING]
+> This only works if you sold stock in the same order as you got them. [Irish revenue applies a First-In-First-Out
 rule to sold shares](https://www.revenue.ie/en/gains-gifts-and-inheritance/transfering-an-asset/selling-or-disposing-of-shares.aspx),
 whereas Etrade attaches the sale transaction to a specific set of stock and does not force
 you to sell following the FIFO rule. This program does not account for this so if you sold stock in disorder, it
@@ -27,7 +25,8 @@ Run the program with `cargo run <path_to_excel_file>`
 How to fill Form 11
 -------------------
 
-Disclaimer: I am not an accountant and I am not 100% sure that this is the right way to do it. I may have made a mistake
+> [!CAUTION]
+> **Disclaimer**: I am not an accountant and I am not 100% sure that this is the right way to do it. I may have made a mistake
 or this might not suit your specific situation. Use at your own risks. If you notice a mistake, please report it by
 opening an issue on this repository.
 
