@@ -22,6 +22,8 @@ pub struct Transaction {
     eur_gain: f64,
     eur_loss: f64,
     exr: f64,
+    usd_proceeds: f64,
+    eur_proceeds: f64,
 }
 
 #[derive(Debug, Default)]
@@ -32,6 +34,8 @@ pub struct PeriodTaxReport {
     pub eur_gain: f64,
     pub eur_loss: f64,
     pub eur_net_gain: f64,
+    pub usd_proceeds: f64,
+    pub eur_proceeds: f64,
 }
 
 #[derive(Debug, Default)]
@@ -78,10 +82,11 @@ impl ExchangeRateCache {
     }
 }
 
-fn get_column_indices(headers: Vec<String>) -> Result<(usize, usize, usize)> {
+fn get_column_indices(headers: Vec<String>) -> Result<(usize, usize, usize, usize)> {
     let mut date_index: Option<usize> = None;
     let mut gain_loss_index: Option<usize> = None;
     let mut record_type_index: Option<usize> = None;
+    let mut total_proceeds_index: Option<usize> = None;
     headers
         .iter()
         .enumerate()
@@ -89,12 +94,14 @@ fn get_column_indices(headers: Vec<String>) -> Result<(usize, usize, usize)> {
             "Date Sold" => date_index = Some(pos),
             "Adjusted Gain/Loss" => gain_loss_index = Some(pos),
             "Record Type" => record_type_index = Some(pos),
+            "Total Proceeds" => total_proceeds_index = Some(pos),
             _ => {}
         });
     Ok((
         date_index.context("failed to find date header")?,
         gain_loss_index.context("failed to find gain/loss header")?,
         record_type_index.context("failed to find record type header")?,
+        total_proceeds_index.context("failed to find total proceeds header")?,
     ))
 }
 
@@ -104,7 +111,8 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
         return Err(Error::msg("missing sheet"));
     };
     let headers = range.headers().context("failed to extract headers")?;
-    let (date_index, gain_loss_index, record_type_index) = get_column_indices(headers)?;
+    let (date_index, gain_loss_index, record_type_index, total_proceeds_index) =
+        get_column_indices(headers)?;
 
     let mut exr_cache = ExchangeRateCache::new();
     let mut transactions = Vec::new();
@@ -129,6 +137,10 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
             return Err(Error::msg("all cells should be from the same fiscal year"));
         }
 
+        let usd_proceeds = r[total_proceeds_index]
+            .as_f64()
+            .context("wrong total proceeds field type")?;
+
         let gain_loss = r[gain_loss_index]
             .as_f64()
             .context("wrong gain/loss field type")?;
@@ -147,6 +159,8 @@ pub fn get_transactions<P: AsRef<Path>>(file_path: P) -> Result<Vec<Transaction>
             eur_gain: usd_gain / exr,
             eur_loss: usd_loss / exr,
             exr,
+            usd_proceeds,
+            eur_proceeds: usd_proceeds / exr,
         });
     }
     Ok(transactions)
@@ -156,7 +170,7 @@ fn compute_period_report(
     transactions: &[Transaction],
     period: Option<(Date, Date)>,
 ) -> PeriodTaxReport {
-    let (usd_gain, usd_loss, eur_gain, eur_loss) = transactions
+    let (usd_gain, usd_loss, eur_gain, eur_loss, usd_proceeds, eur_proceeds) = transactions
         .iter()
         .filter(|t| {
             if let Some((period_start, period_end)) = period {
@@ -166,13 +180,15 @@ fn compute_period_report(
             }
         })
         .fold(
-            (0., 0., 0., 0.),
-            |(usd_gain, usd_loss, eur_gain, eur_loss), t| {
+            (0., 0., 0., 0., 0., 0.),
+            |(usd_gain, usd_loss, eur_gain, eur_loss, usd_proceeds, eur_proceeds), t| {
                 (
                     usd_gain + t.usd_gain,
                     usd_loss + t.usd_loss,
                     eur_gain + t.eur_gain,
                     eur_loss + t.eur_loss,
+                    usd_proceeds + t.usd_proceeds,
+                    eur_proceeds + t.eur_proceeds,
                 )
             },
         );
@@ -185,6 +201,8 @@ fn compute_period_report(
         eur_gain,
         eur_loss,
         eur_net_gain,
+        usd_proceeds,
+        eur_proceeds,
     }
 }
 
@@ -216,6 +234,8 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
         "EUR Gain",
         "EUR Loss",
         "EXR",
+        "USD Proceeds",
+        "EUR Proceeds",
     ])?;
     for t in transactions {
         wtr.write_record(&[
@@ -225,6 +245,8 @@ pub fn write_detail_as_csv<P: AsRef<Path>>(
             t.eur_gain.to_string(),
             t.eur_loss.to_string(),
             t.exr.to_string(),
+            t.usd_proceeds.to_string(),
+            t.eur_proceeds.to_string(),
         ])?;
     }
     println!(
@@ -284,9 +306,11 @@ fn print_period_header(period: (Date, Date)) -> Result<()> {
 }
 
 fn print_period_report(report: &PeriodTaxReport) {
+    println!("Total proceeds (USD): ${:.2}", report.usd_proceeds);
     println!("Total gain (USD): ${:.2}", report.usd_gain);
     println!("Total loss (USD): ${:.2}", report.usd_loss);
     println!("Net gain (USD): ${:.2}\n", report.usd_net_gain);
+    println!("Total proceeds: €{:.2}", report.eur_proceeds);
     println!("Total gain: €{:.2}", report.eur_gain);
     println!("Total loss: €{:.2}", report.eur_loss);
     println!("Net gain (Gain-Loss): €{:.2}", report.eur_net_gain);
