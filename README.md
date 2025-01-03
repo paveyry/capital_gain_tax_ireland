@@ -6,7 +6,11 @@ This is strongly inspired of wladh's CGT.jl: https://github.com/wladh/CGT.jl
 
 First, download the excel sheet with the trades for the year from Etrade:
 
-        Stock Plan -> My Account -> Gains & Losses -> Select tax year -> Apply -> Download -> Download Expanded.
+        → Click "Stock Plan" 
+          ↳ Click "My Account" → "Gains & Losses"
+          ↳ Select the right tax year
+          ↳ Click "Apply"
+          ↳ Click "Download" → "Download Expanded"
 
 > [!WARNING]
 > This only works if you sold stock in the same order as you got them. [Irish revenue applies a First-In-First-Out
