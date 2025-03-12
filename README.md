@@ -38,7 +38,7 @@ opening an issue on this repository.
 
 Here is how I fill the Capital Gains section:
 
-![year part](https://github.com/user-attachments/assets/3d471e7f-4662-4a3e-b2cb-d6b0f027f2b1)
+![year part](https://github.com/user-attachments/assets/1bb97592-8d9f-44e3-9798-b2a0b672ffca)
 
 ![period part](https://github.com/user-attachments/assets/58705e43-2065-451d-9221-27dcb2bd8039)
 
