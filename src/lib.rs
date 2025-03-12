@@ -196,7 +196,7 @@ fn compute_period_report(
     let usd_net_gain = usd_gain - usd_loss;
     let eur_net_gain = eur_gain - eur_loss;
     let eur_chargeable_gain = f64::max(eur_net_gain - exemption, 0.);
-    let eur_tax = eur_chargeable_gain*TAX_RATE;
+    let eur_tax = eur_chargeable_gain * TAX_RATE;
     PeriodTaxReport {
         usd_gain,
         usd_loss,
@@ -270,7 +270,7 @@ pub fn compute_and_print_report(transactions: &[Transaction]) -> Result<()> {
     let period_report = compute_period_report(transactions, Some(period), EXEMPTION_EUR);
     print_period_report(&period_report);
 
-    // Portion of the exemption that has been used in the first period (to deduct 
+    // Portion of the exemption that has been used in the first period (to deduct
     // from the exemption in the second period). This can become negative if
     // there was loss, as this loss can now be deducted from the next period too.
     let used_exemption = f64::min(EXEMPTION_EUR, period_report.eur_net_gain);
@@ -281,7 +281,8 @@ pub fn compute_and_print_report(transactions: &[Transaction]) -> Result<()> {
         Date::from_calendar_date(yr, Month::December, 31)?,
     );
     print_period_header(period)?;
-    let period_report = compute_period_report(transactions, Some(period), EXEMPTION_EUR-used_exemption);
+    let period_report =
+        compute_period_report(transactions, Some(period), EXEMPTION_EUR - used_exemption);
     print_period_report(&period_report);
 
     // Full year
