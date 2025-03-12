@@ -38,12 +38,16 @@ opening an issue on this repository.
 
 Here is how I fill the Capital Gains section:
 
-![year part](https://github.com/user-attachments/assets/b44599bc-26c2-4cb7-b0ed-fc2d5a009d07)
+![year part](https://github.com/user-attachments/assets/3d471e7f-4662-4a3e-b2cb-d6b0f027f2b1)
 
-![period part](https://github.com/user-attachments/assets/f61afe71-9795-426a-a213-b6c1cac9a400)
+![period part](https://github.com/user-attachments/assets/58705e43-2065-451d-9221-27dcb2bd8039)
 
 ### CGT Self assessment section
 
-For the self assessment, I use the `Taxable gain (amount above exemption)` and `Tax to pay (33.00%)` values
+For the self assessment, I use the `Net chargeable gain (amount above exemption)` and `Tax to pay (33.00%)` values
 displayed at the end of the program output. Unlike the values in the Capital Gains section, these values
 deduct the €1270,00 exemption from the result. 
+
+### Total proceeds
+
+![Total proceeds](https://github.com/user-attachments/assets/83d32337-3436-4b55-982a-52773d542403)
